@@ -1,0 +1,301 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>网格比例计算器 (CAD标准图纸版)</title>
+<style>
+  body {
+    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+    padding: 30px;
+    max-width: 900px;
+    margin: auto;
+    background-color: #f5f6fa;
+    color: #333;
+  }
+  h2 {
+    text-align: center;
+    color: #2f3640;
+  }
+  .container {
+    background: #fff;
+    padding: 25px;
+    border-radius: 10px;
+    box-shadow: 0 4px 15px rgba(0,0,0,0.05);
+  }
+  .input-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(250px, 1fr));
+    gap: 15px;
+    margin-bottom: 25px;
+  }
+  .input-group {
+    display: flex;
+    flex-direction: column;
+  }
+  label {
+    margin-bottom: 6px;
+    font-weight: 600;
+    color: #555;
+    font-size: 14px;
+  }
+  input {
+    padding: 10px;
+    border: 1px solid #dcdde1;
+    border-radius: 6px;
+    font-size: 16px;
+    transition: border-color 0.3s;
+  }
+  input:focus {
+    border-color: #3498db;
+    outline: none;
+  }
+  button {
+    width: 100%;
+    padding: 14px;
+    background-color: #27ae60;
+    color: white;
+    border: none;
+    border-radius: 6px;
+    font-size: 16px;
+    font-weight: bold;
+    cursor: pointer;
+    transition: background-color 0.3s;
+  }
+  button:hover {
+    background-color: #219150;
+  }
+  .result {
+    margin-top: 25px;
+    padding: 15px 20px;
+    background: #f1f8f3;
+    border-left: 5px solid #27ae60;
+    border-radius: 6px;
+    line-height: 1.6;
+    font-size: 15px;
+  }
+  .highlight {
+    color: #e74c3c;
+    font-size: 1.2em;
+    font-weight: bold;
+  }
+  #preview-container {
+    margin-top: 30px;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    background: #fff;
+    padding: 20px;
+    border-radius: 8px;
+    min-height: 400px;
+  }
+  #preview-box {
+    width: 100%;
+    display: flex;
+    justify-content: center;
+  }
+</style>
+</head>
+<body>
+
+  <div class="container">
+    <h2>📐 网格比例计算器 (CAD标准标注)</h2>
+    
+    <div class="input-grid">
+      <div class="input-group">
+        <label>总宽度 (mm)</label>
+        <input type="number" id="t-width" value="950" max="8000" min="1">
+      </div>
+      <div class="input-group">
+        <label>总高度 (mm)</label>
+        <input type="number" id="t-height" value="2355" max="8000" min="1">
+      </div>
+      <div class="input-group">
+        <label>竖格数量 (列数)</label>
+        <input type="number" id="cols" value="3" min="1">
+      </div>
+      <div class="input-group">
+        <label>横格数量 (行数)</label>
+        <input type="number" id="rows" value="3" min="1">
+      </div>
+      <div class="input-group">
+        <label>格条宽度 (mm)</label>
+        <input type="number" id="gap" value="12" min="0">
+      </div>
+      <div class="input-group">
+        <label>外框宽度 (mm)</label>
+        <input type="number" id="frame" value="16" min="0">
+      </div>
+    </div>
+
+    <button onclick="calculate()">生成 CAD 样式图纸</button>
+
+    <div class="result" id="result-text">
+      单格尺寸：请点击计算
+    </div>
+
+    <div id="preview-container">
+       <div id="preview-box"></div>
+    </div>
+  </div>
+
+  <script>
+    function calculate() {
+      const tw = parseFloat(document.getElementById('t-width').value);
+      const th = parseFloat(document.getElementById('t-height').value);
+      const cols = parseInt(document.getElementById('cols').value);
+      const rows = parseInt(document.getElementById('rows').value);
+      const gap = parseFloat(document.getElementById('gap').value);
+      const frame = parseFloat(document.getElementById('frame').value);
+
+      if (!tw || !th || cols < 1 || rows < 1) {
+        alert('请输入有效的正数值');
+        return;
+      }
+
+      const innerW = tw - (frame * 2);
+      const innerH = th - (frame * 2);
+      const cellW = (innerW - (cols - 1) * gap) / cols;
+      const cellH = (innerH - (rows - 1) * gap) / rows;
+
+      if (cellW <= 0 || cellH <= 0) {
+        document.getElementById('result-text').innerHTML = '<span style="color:red;">错误：外框或格条过宽，导致单格尺寸小于或等于0。</span>';
+        document.getElementById('preview-box').innerHTML = '';
+        return;
+      }
+
+      document.getElementById('result-text').innerHTML = `
+        <strong>精算结果：</strong><br>
+        单格宽度：<span class="highlight">${cellW.toFixed(2)} mm</span> &nbsp;&nbsp;|&nbsp;&nbsp;
+        单格高度：<span class="highlight">${cellH.toFixed(2)} mm</span>
+      `;
+
+      // ---------- 渲染 CAD 风格 SVG 图纸 ----------
+      let maxDim = Math.max(tw, th);
+      
+      // 动态响应式尺寸设定
+      let strokeW = Math.max(maxDim * 0.0015, 0.5); // 图形线宽
+      let dimStrokeW = strokeW * 0.7; // 标注线宽更细
+      let fSize = Math.max(maxDim * 0.016, 10); // 字体大小
+      let tickL = Math.max(maxDim * 0.005, 3); // 斜线端点长度
+      
+      // 标注线距离
+      let extOffsetY = fSize * 2.5; 
+      let dimY1 = th + extOffsetY; // 第一层(细节)横向标注 Y 坐标
+      let dimY2 = dimY1 + extOffsetY * 1.5; // 第二层(总计)横向标注 Y 坐标
+
+      let extOffsetX = fSize * 2.5;
+      let dimX1 = tw + extOffsetX; // 第一层(细节)纵向标注 X 坐标
+      let dimX2 = dimX1 + extOffsetX * 1.5; // 第二层(总计)纵向标注 X 坐标
+
+      // 颜色设定 (对齐参考图)
+      const objColor = "#6d4c41"; // 棕色 (边框与格条)
+      const dimColor = "#e64a19"; // 橙红 (标注线与文字)
+
+      // 计算所有 X 轴特征点 (外框、格条、单格的起止点)
+      let xPts = [0];
+      let cx = 0;
+      if (frame > 0) { cx += frame; xPts.push(cx); }
+      for (let c = 0; c < cols; c++) {
+          cx += cellW; xPts.push(cx);
+          if (c < cols - 1 && gap > 0) {
+              cx += gap; xPts.push(cx);
+          }
+      }
+      if (frame > 0) { cx += frame; xPts.push(cx); }
+
+      // 计算所有 Y 轴特征点
+      let yPts = [0];
+      let cy = 0;
+      if (frame > 0) { cy += frame; yPts.push(cy); }
+      for (let r = 0; r < rows; r++) {
+          cy += cellH; yPts.push(cy);
+          if (r < rows - 1 && gap > 0) {
+              cy += gap; yPts.push(cy);
+          }
+      }
+      if (frame > 0) { cy += frame; yPts.push(cy); }
+
+      // SVG 容器起点与宽高预留
+      let vMargin = maxDim * 0.05;
+      let svg = `<svg viewBox="-${vMargin} -${vMargin} ${tw + extOffsetX * 4} ${th + extOffsetY * 4}" style="width:100%; max-height: 80vh; font-family: 'Arial', sans-serif;">`;
+      
+      // 1. 绘制主体框架与格子
+      // 外轮廓
+      svg += `<rect x="0" y="0" width="${tw}" height="${th}" fill="none" stroke="${objColor}" stroke-width="${strokeW}" />`;
+      // 内轮廓 (单格边框)
+      for (let r = 0; r < rows; r++) {
+          for (let c = 0; c < cols; c++) {
+              let rectX = frame + c * (cellW + gap);
+              let rectY = frame + r * (cellH + gap);
+              svg += `<rect x="${rectX}" y="${rectY}" width="${cellW}" height="${cellH}" fill="none" stroke="${objColor}" stroke-width="${strokeW}" />`;
+          }
+      }
+
+      // --- 辅助函数：画斜线端点 ---
+      function getTick(x, y) {
+          return `<line x1="${x - tickL}" y1="${y + tickL}" x2="${x + tickL}" y2="${y - tickL}" stroke="${dimColor}" stroke-width="${dimStrokeW * 1.5}" />`;
+      }
+      // 格式化数字 (去除多余的小数点)
+      function fmt(num) { return Number(num.toFixed(2)); }
+
+      // 2. 绘制底部 X 轴标注
+      // 画延长线
+      for (let x of xPts) {
+          svg += `<line x1="${x}" y1="${th + strokeW}" x2="${x}" y2="${dimY1 + tickL}" stroke="${dimColor}" stroke-width="${dimStrokeW}" stroke-opacity="0.5" />`;
+      }
+      svg += `<line x1="0" y1="${th + strokeW}" x2="0" y2="${dimY2 + tickL}" stroke="${dimColor}" stroke-width="${dimStrokeW}" stroke-opacity="0.5" />`;
+      svg += `<line x1="${tw}" y1="${th + strokeW}" x2="${tw}" y2="${dimY2 + tickL}" stroke="${dimColor}" stroke-width="${dimStrokeW}" stroke-opacity="0.5" />`;
+
+      // 第一层(细分)尺寸线
+      svg += `<line x1="0" y1="${dimY1}" x2="${tw}" y2="${dimY1}" stroke="${dimColor}" stroke-width="${dimStrokeW}" />`;
+      for (let i = 0; i < xPts.length - 1; i++) {
+          let p1 = xPts[i], p2 = xPts[i+1];
+          let val = p2 - p1;
+          let mid = (p1 + p2) / 2;
+          svg += getTick(p1, dimY1);
+          svg += `<text x="${mid}" y="${dimY1 - fSize*0.4}" text-anchor="middle" font-size="${fSize}" fill="${dimColor}">${fmt(val)}</text>`;
+      }
+      svg += getTick(xPts[xPts.length-1], dimY1);
+
+      // 第二层(总)尺寸线
+      svg += `<line x1="0" y1="${dimY2}" x2="${tw}" y2="${dimY2}" stroke="${dimColor}" stroke-width="${dimStrokeW}" />`;
+      svg += getTick(0, dimY2);
+      svg += getTick(tw, dimY2);
+      svg += `<text x="${tw/2}" y="${dimY2 + fSize*1.2}" text-anchor="middle" font-size="${fSize}" fill="${dimColor}">${fmt(tw)}</text>`;
+
+
+      // 3. 绘制右侧 Y 轴标注
+      // 画延长线
+      for (let y of yPts) {
+          svg += `<line x1="${tw + strokeW}" y1="${y}" x2="${dimX1 + tickL}" y2="${y}" stroke="${dimColor}" stroke-width="${dimStrokeW}" stroke-opacity="0.5" />`;
+      }
+      svg += `<line x1="${tw + strokeW}" y1="0" x2="${dimX2 + tickL}" y2="0" stroke="${dimColor}" stroke-width="${dimStrokeW}" stroke-opacity="0.5" />`;
+      svg += `<line x1="${tw + strokeW}" y1="${th}" x2="${dimX2 + tickL}" y2="${th}" stroke="${dimColor}" stroke-width="${dimStrokeW}" stroke-opacity="0.5" />`;
+
+      // 第一层(细分)尺寸线
+      svg += `<line x1="${dimX1}" y1="0" x2="${dimX1}" y2="${th}" stroke="${dimColor}" stroke-width="${dimStrokeW}" />`;
+      for (let i = 0; i < yPts.length - 1; i++) {
+          let p1 = yPts[i], p2 = yPts[i+1];
+          let val = p2 - p1;
+          let mid = (p1 + p2) / 2;
+          svg += getTick(dimX1, p1);
+          // 垂直居中文字并旋转90度
+          svg += `<text transform="translate(${dimX1 - fSize*0.5}, ${mid}) rotate(-90)" text-anchor="middle" font-size="${fSize}" fill="${dimColor}">${fmt(val)}</text>`;
+      }
+      svg += getTick(dimX1, yPts[yPts.length-1]);
+
+      // 第二层(总)尺寸线
+      svg += `<line x1="${dimX2}" y1="0" x2="${dimX2}" y2="${th}" stroke="${dimColor}" stroke-width="${dimStrokeW}" />`;
+      svg += getTick(dimX2, 0);
+      svg += getTick(dimX2, th);
+      svg += `<text transform="translate(${dimX2 + fSize*1.1}, ${th/2}) rotate(-90)" text-anchor="middle" font-size="${fSize}" fill="${dimColor}">${fmt(th)}</text>`;
+
+      svg += `</svg>`;
+      document.getElementById('preview-box').innerHTML = svg;
+    }
+
+    window.onload = calculate;
+  </script>
+</body>
+</html>
